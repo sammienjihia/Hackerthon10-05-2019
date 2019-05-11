@@ -26,7 +26,7 @@ class BillingController extends Controller
      */
 
     /**
-     * Generate iccid numbers
+     * Generate iccid, imsi, pin1 and imsi numbers
      */
     public function randomNumber($length) {
         $result = '';
@@ -54,10 +54,6 @@ class BillingController extends Controller
         $pin1 = $this->randomNumber(4);
         $puc = $this->randomNumber(6);
 
-
-
-
-
         try{
             Sim::create([
                 'iccid'=>$iccid,
@@ -83,8 +79,8 @@ class BillingController extends Controller
     public function activateSimCard(Request $request){
         //Get sim with associated ICCID
         $validator = Validator::make($request->all(), [
-            'iccid' => 'required|int',
-            'msisdn' => 'required|int|min:12'
+            'iccid' => 'required|string|min:21|max:21',
+            'msisdn' => 'required|string|min:12|max:20'
         ]);
 
         if ($validator->fails()){
@@ -93,12 +89,13 @@ class BillingController extends Controller
 
 
         try{
-            $sim = DB::table('sims')->where('iccid', $request['iccid'])->first();
+            $sim = Sim::where('iccid', '=', $request['iccid'])->firstOrFail();
 
         }
-        catch ( QueryException $e) {
-            return response()->json(['status'=>'1', 'data'=>'SIM card does not exist', 'error'=>$e->errorInfo, 'iccid'=>$iccid]);
+        catch ( ModelNotFoundException $e) {
+            return response()->json(['status'=>'1', 'data'=>'SIM card does not exist']);
         }
+
 
         if($sim->status==1){
             return response()->json(['status'=>'2', 'data'=>'SIM already active']);
@@ -112,13 +109,16 @@ class BillingController extends Controller
                     'iccid'=>$sim->id
                 ]);
 
-                $sim->status = 1;
             }
 
             catch (QueryException $e){
                 return response()->json(['error'=>'error ativating sim', 'data'=>$e->errorInfo, 'msg'=>$sim->iccid]);
 
             }
+
+            DB::table('sims')
+            ->where('id', $sim->id)
+            ->update(['status' => 1]);
         }
 
 
@@ -141,38 +141,19 @@ class BillingController extends Controller
             return response()->json(['error'=>$validator->errors()], 401);
         }
 
-        //find subscriber
+        //get subscriber info
+
         try{
-
-            $msisdn = DB::table('msisdns')->where('msisdn', $request['msisdn'])->first();
+            $subscriber = msisdn::where('msisdn', '=', $request['msisdn'])
+            ->join('sims', 'sims.id', '=', 'msisdns.iccid')
+            ->select('sims.*', 'msisdns.balance', 'msisdns.msisdn')->firstOrFail();
+        }
+        catch(ModelNotFoundException $e){
+            return response()->json(['status'=>'0', 'data'=>'Subscriber not found']);
 
         }
-        catch ( QueryException $e) {
-            return response()->json(['status'=>'0', 'data'=>'Subscriber not found', 'error'=>$e->errorInfo]);
-        }
 
-
-        //find sim card information
-        $iccid = $msisdn->iccid;
-        try{
-            $info = DB::table('sims')->where('id', $iccid)->first();
-
-        }
-        catch ( QueryException $e) {
-            return response()->json(['status'=>'1', 'data'=>'SIM card does not exist', 'error'=>$e->errorInfo, 'iccid'=>$iccid]);
-        }
-
-
-        $data = [
-            'msisdn'=> $msisdn,
-            'iccid'=> $info->iccid,
-            'balance'=> $msisdn->balance,
-            'iccid' => $info->iccid,
-            'imsi' => $info->imsi,
-            'ki' => $info->ki
-        ];
-
-        return response()->json(['status'=>'1', 'data'=>$data]);
+        return response()->json(['status'=>'1', 'data'=>$subscriber]);
 
 
 
