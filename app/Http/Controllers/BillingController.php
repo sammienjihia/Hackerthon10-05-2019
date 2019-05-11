@@ -31,7 +31,7 @@ class BillingController extends Controller
     public function randomNumber($length) {
         $result = '';
         for($i = 0; $i < $length; $i++) {
-            $result .= mt_rand(0, 9);
+            $result .= mt_rand(1, 9);
         }
         return $result;
     }
@@ -40,29 +40,23 @@ class BillingController extends Controller
 
         //validate input
         $validator = Validator::make($request->all(), [
-            'iccid' => 'required|',
-            'ki' => 'required|string|min:20',
-            'imsi' => 'required|integer|min:15',
-            'pin1' => 'required|integer|min:4',
-            'puc' => 'required|integer|min:6'
+            'ki' => 'required|string|min:20|max:20'
         ]);
 
         if ($validator->fails()){
             return response()->json(['error'=>$validator->errors()], 401);
-        } 
+        }
 
 
-        
-        $iccid = $request['iccid'];
-        $imsi = $request['imsi'];
-        $pin1 = $request['pin1'];
-        $puc = $request['puc'];
-        
+
+        $iccid = '8925402'.$this->randomNumber(14);
+        $imsi = '63902'.$this->randomNumber(10);
+        $pin1 = $this->randomNumber(4);
+        $puc = $this->randomNumber(6);
 
 
-        if ($validator->fails()){
-            return response()->json(['error'=>$validator->errors()], 401);
-        } 
+
+
 
         try{
             Sim::create([
@@ -80,7 +74,7 @@ class BillingController extends Controller
         return response()->json(['status'=>'0', 'data'=>'Success']);
 
 
-        
+
     }
 
     /**
@@ -90,25 +84,25 @@ class BillingController extends Controller
         //Get sim with associated ICCID
         $validator = Validator::make($request->all(), [
             'iccid' => 'required|int',
-            'msisdn' => 'required|int|min:12'            
+            'msisdn' => 'required|int|min:12'
         ]);
 
         if ($validator->fails()){
             return response()->json(['error'=>$validator->errors()], 401);
-        } 
+        }
 
 
         try{
             $sim = DB::table('sims')->where('iccid', $request['iccid'])->first();
-   
-        } 
+
+        }
         catch ( QueryException $e) {
             return response()->json(['status'=>'1', 'data'=>'SIM card does not exist', 'error'=>$e->errorInfo, 'iccid'=>$iccid]);
         }
 
         if($sim->status==1){
             return response()->json(['status'=>'2', 'data'=>'SIM already active']);
-            
+
         }
 
         else{
@@ -134,25 +128,25 @@ class BillingController extends Controller
     }
 
     /**
-     * This endpoint queries subscriber information 
+     * This endpoint queries subscriber information
      */
     public function subscriberInfo(Request $request){
         //
         //validate msisdn input
         $validator = Validator::make($request->all(), [
-            'msisdn' => 'required|numeric|min:12'            
+            'msisdn' => 'required|numeric|min:12'
         ]);
 
         if ($validator->fails()){
             return response()->json(['error'=>$validator->errors()], 401);
-        } 
+        }
 
         //find subscriber
         try{
-            
-            $msisdn = DB::table('msisdns')->where('msisdn', $request['msisdn'])->first(); 
-   
-        } 
+
+            $msisdn = DB::table('msisdns')->where('msisdn', $request['msisdn'])->first();
+
+        }
         catch ( QueryException $e) {
             return response()->json(['status'=>'0', 'data'=>'Subscriber not found', 'error'=>$e->errorInfo]);
         }
@@ -162,8 +156,8 @@ class BillingController extends Controller
         $iccid = $msisdn->iccid;
         try{
             $info = DB::table('sims')->where('id', $iccid)->first();
-   
-        } 
+
+        }
         catch ( QueryException $e) {
             return response()->json(['status'=>'1', 'data'=>'SIM card does not exist', 'error'=>$e->errorInfo, 'iccid'=>$iccid]);
         }
@@ -186,7 +180,7 @@ class BillingController extends Controller
     }
 
     /**
-     * This endpoint adjusts the account balance 
+     * This endpoint adjusts the account balance
      */
     public function adjustBalance(Request $request){
         //validate input
@@ -195,20 +189,20 @@ class BillingController extends Controller
             'msisdn' => 'required|int|min:12',
             'transactiontype' => 'required|int',
             'amount' => 'required|int'
-                        
+
         ]);
 
         if ($validator->fails()){
             return response()->json(['error'=>$validator->errors()], 401);
         }
 
-        
+
         //find subscriber
         try{
-             
-            $msisdn = DB::table('msisdns')->where('msisdn', $request['msisdn'])->first(); 
-   
-        } 
+
+            $msisdn = DB::table('msisdns')->where('msisdn', $request['msisdn'])->first();
+
+        }
         catch ( QueryException $e) {
             return response()->json(['status'=>'0', 'data'=>'Subscriber not found', 'error'=>$e->errorInfo]);
         }
@@ -216,14 +210,14 @@ class BillingController extends Controller
         //check transaction type
         if($request['transactiontype'] == 1){
 
-            
+
             $new_balance = $msisdn->balance + $request['amount'];
-            
+
             DB::table('msisdns')
             ->where('id', $msisdn->id)
             ->update(['balance' => $new_balance]);
 
-            
+
         }
         elseif($request['transactiontype'] == 0){
             if($msisdn->balance >= $request['amount']){
