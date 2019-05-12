@@ -16,7 +16,7 @@ class CreateMsisdnsTable extends Migration
         Schema::create('msisdns', function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->bigInteger('msisdn')->unique();
-            $table->unsignedBigInteger('iccid');
+            $table->bigInteger('iccid');
             $table->float('balance')->default(0);
             $table->timestamps();
 

@@ -15,8 +15,8 @@ class CreateSimsTable extends Migration
     {
         Schema::create('sims', function (Blueprint $table) {
             $table->bigIncrements('id');
-            $table->bigInteger('iccid')->unique();
-            $table->bigInteger('imsi');
+            $table->string('iccid')->unique();
+            $table->string('imsi');
             $table->string('ki', 20);
             $table->integer('pin1');
             $table->integer('puc');
