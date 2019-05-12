@@ -55,32 +55,38 @@ class BillingController extends Controller
         $puc = $this->randomNumber(6);
 
         try{
-            Sim::create([
-                'iccid'=>$iccid,
-                'imsi'=>$imsi,
-                'pin1'=>$pin1,
-                'puc'=>$puc,
-                'ki'=>$request['ki']
-            ]);
+            $sim = Sim::where('iccid', '=', $iccid)->firstOrFail();
+
         }
-        catch ( QueryException $e) {
-            return response()->json(['status'=>'1', 'data'=>'SIM already provisioned', 'error'=>$e->errorInfo, 'iccid'=>$iccid]);
+        catch ( ModelNotFoundException $e) {
+            try{
+                Sim::create([
+                    'iccid'=>$iccid,
+                    'imsi'=>$imsi,
+                    'pin1'=>$pin1,
+                    'puc'=>$puc,
+                    'ki'=>$request['ki']
+                ]);
+            }
+            catch ( QueryException $e) {
+                return response()->json(['status'=>'10', 'data'=>'SIM error creating sim', 'error'=>$e->errorInfo, 'iccid'=>$iccid]);
+            }
+
+            return response()->json(['status'=>'0', 'data'=>'Success']);
+
         }
-
-        return response()->json(['status'=>'0', 'data'=>'Success']);
-
-
+        return response()->json(['status'=>'1', 'data'=>'Sim already provisioned']);
 
     }
 
     /**
-     * Ths endpoint activates the simcard /GET/
+     * Ths endpoint activates the simcard /POST/
      */
     public function activateSimCard(Request $request){
         //Get sim with associated ICCID
         $validator = Validator::make($request->all(), [
             'iccid' => 'required|string|min:21|max:21',
-            'msisdn' => 'required|string|min:12|max:20'
+            'msisdn' => 'required|string|min:12|max:12'
         ]);
 
         if ($validator->fails()){
