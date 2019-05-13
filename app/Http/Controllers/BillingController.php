@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Foundation\Exceptions;
 
 class BillingController extends Controller
 {
@@ -127,8 +128,6 @@ class BillingController extends Controller
             ->update(['status' => 1]);
         }
 
-
-
         return response()->json(['status'=>'0', 'data'=>'Success']);
 
     }
@@ -161,9 +160,6 @@ class BillingController extends Controller
 
         return response()->json(['status'=>'1', 'data'=>$subscriber]);
 
-
-
-
     }
 
     /**
@@ -173,7 +169,7 @@ class BillingController extends Controller
         //validate input
         // transaction type 1:Topup 2:topdown
         $validator = Validator::make($request->all(), [
-            'msisdn' => 'required|int|min:12',
+            'msisdn' => 'required|string|min:12|max:12',
             'transactiontype' => 'required|int',
             'amount' => 'required|int'
 
@@ -183,35 +179,50 @@ class BillingController extends Controller
             return response()->json(['error'=>$validator->errors()], 401);
         }
 
+        // Begin transaction
+        DB::beginTransaction();
 
         //find subscriber
         try{
 
-            $msisdn = DB::table('msisdns')->where('msisdn', $request['msisdn'])->first();
+            $msisdn = msisdn::where('msisdn', '=', $request['msisdn'])->lockForUpdate()->firstOrFail();
 
         }
-        catch ( QueryException $e) {
-            return response()->json(['status'=>'0', 'data'=>'Subscriber not found', 'error'=>$e->errorInfo]);
+        catch ( ModelNotFoundException $e) {
+            return response()->json(['status'=>'0', 'data'=>'Subscriber not found']);
         }
 
         //check transaction type
         if($request['transactiontype'] == 1){
 
+            try{
+                $new_balance = $msisdn->balance + $request['amount'];
+                $msisdn->update(['balance' => $new_balance]);
 
-            $new_balance = $msisdn->balance + $request['amount'];
-
-            DB::table('msisdns')
-            ->where('id', $msisdn->id)
-            ->update(['balance' => $new_balance]);
+                DB::commit();
+            }
+            catch (Exceptions $e) {
+                DB::rollBack();
+                return response()->json(['error'=>'An error occured, please try again']);
+              }
 
 
         }
         elseif($request['transactiontype'] == 0){
             if($msisdn->balance >= $request['amount']){
-                $new_balance = $msisdn->balance - $request['amount'];
-                DB::table('msisdns')
-            ->where('id', $msisdn->id)
-            ->update(['balance' => $new_balance]);
+
+
+                try{
+                    $new_balance = $msisdn->balance - $request['amount'];
+                    $msisdn->update(['balance'=>$new_balance]);
+                    DB::commit();
+                }
+                catch (Exceptions $e) {
+                    DB::rollBack();
+                    return response()->json(['error'=>'An error occured, please try again']);
+                  }
+
+                return response()->json(['status'=>'1', 'data'=>'Transaction successful']);
             }
             else{
                 return response()->json(['status'=>'0', 'data'=>'Transaction not possible']);
@@ -220,6 +231,8 @@ class BillingController extends Controller
         else{
             return response()->json(['status'=>'0', 'data'=>'Your transaction type is incorrect. Option is 1 for top up and 0 for debit']);
         }
+
+
         return response()->json(['status'=>'1', 'data'=>'Transaction successful']);
     }
 }
